@@ -16,3 +16,6 @@ data/
 
 # macOS
 .DS_Store
+
+# Artefacts produits par l'entraînement
+artifacts/
