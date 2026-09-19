@@ -49,6 +49,28 @@ PAGE_WEIGHTS: dict[str, float] = {
     "Downgrade": 0.01,
 }
 
+#: Profil d'un utilisateur en train de décrocher : moins d'écoute, plus de
+#: publicités subies, plus d'erreurs et d'appels à l'aide, moins d'interactions
+#: positives. Le profil réel de chaque utilisateur est un mélange de cette
+#: distribution et de la précédente, pondéré par son désengagement.
+DISENGAGED_PAGE_WEIGHTS: dict[str, float] = {
+    "NextSong": 0.58,
+    "Thumbs Up": 0.015,
+    "Home": 0.07,
+    "Add to Playlist": 0.008,
+    "Roll Advert": 0.11,
+    "Add Friend": 0.004,
+    "Thumbs Down": 0.035,
+    "Help": 0.035,
+    "Settings": 0.025,
+    "Save Settings": 0.008,
+    "About": 0.015,
+    "Logout": 0.045,
+    "Error": 0.025,
+    "Upgrade": 0.005,
+    "Downgrade": 0.03,
+}
+
 _USER_AGENTS = (
     '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"',
     '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/605.1.15"',
@@ -116,8 +138,8 @@ def make_events(
     window_start = window_end - pd.Timedelta(days=history_days)
 
     pages = np.array(list(PAGE_WEIGHTS))
-    weights = np.array(list(PAGE_WEIGHTS.values()))
-    weights = weights / weights.sum()
+    poids_engage = np.array(list(PAGE_WEIGHTS.values()))
+    poids_desengage = np.array([DISENGAGED_PAGE_WEIGHTS[p] for p in pages])
 
     n_churners = int(round(n_users * churn_rate))
     churner_flags = np.zeros(n_users, dtype=bool)
@@ -129,6 +151,14 @@ def make_events(
     for i in range(n_users):
         user_id = str(1000 + i)
         is_churner = bool(churner_flags[i])
+
+        # Score de désengagement : corrélé à la résiliation, mais largement
+        # chevauchant. C'est lui qui rend la cible apprenable sans la rendre
+        # triviale — un résiliant discret et un fidèle lassé existent tous deux.
+        desengagement = float(rng.beta(5, 2) if is_churner else rng.beta(2, 5))
+
+        poids = (1 - desengagement) * poids_engage + desengagement * poids_desengage
+        poids = poids / poids.sum()
 
         registration = window_start - pd.Timedelta(
             days=float(rng.uniform(10, 400)), seconds=float(rng.integers(0, 86400))
@@ -157,17 +187,23 @@ def make_events(
         first_name = _FIRST_NAMES[int(rng.integers(0, len(_FIRST_NAMES)))]
         last_name = _LAST_NAMES[int(rng.integers(0, len(_LAST_NAMES)))]
 
-        n_sessions = int(rng.integers(2, 26))
-        session_starts = np.sort(rng.uniform(0, span, n_sessions))
+        # Un utilisateur qui décroche se connecte moins souvent…
+        n_sessions = max(2, int(rng.integers(2, 26) * (1 - 0.55 * desengagement)))
+
+        # …et ses sessions se concentrent au début de la période observée,
+        # laissant les fenêtres récentes de plus en plus vides.
+        session_starts = np.sort(
+            rng.beta(1.0, 1.0 + 3.0 * desengagement, n_sessions) * span
+        )
 
         for s, offset in enumerate(session_starts):
             session_id = i * 1000 + s
             session_start = activity_start + pd.Timedelta(seconds=float(offset))
-            n_events = int(rng.integers(2, 45))
+            n_events = max(2, int(rng.integers(2, 45) * (1 - 0.4 * desengagement)))
 
             elapsed = 0.0
             for item in range(n_events):
-                page = str(rng.choice(pages, p=weights))
+                page = str(rng.choice(pages, p=poids))
                 is_song = page == "NextSong"
                 length = float(rng.normal(245, 95)) if is_song else np.nan
                 if is_song:
