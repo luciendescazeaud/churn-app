@@ -32,6 +32,7 @@ from .data import (
     validate_schema,
 )
 from .features import align_features, build_features, feature_columns
+from .synthetic import make_events, write_demo_csv
 
 __version__ = "0.1.0"
 
@@ -55,8 +56,10 @@ __all__ = [
     "filter_valid_users",
     "find_leaky_columns",
     "load_events",
+    "make_events",
     "prepare_events",
     "restrict_to_users",
     "truncate_at",
     "validate_schema",
+    "write_demo_csv",
 ]
