@@ -91,6 +91,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # QEMU émule un processeur ARM sur le runner Intel, ce qui permet de
+      # construire la seconde variante de l'image. Sans lui, la publication
+      # ne produirait que du linux/amd64, inutilisable sur un Mac Apple
+      # Silicon — le message d'erreur y parle de « manifest » introuvable,
+      # ce qui ressemble à un projet cassé alors que tout va bien.
+      - uses: docker/setup-qemu-action@v3
+
       - uses: docker/setup-buildx-action@v3
 
       - name: S'authentifier
@@ -104,6 +111,11 @@ jobs:
         with:
           context: .
           push: true
+          # Une seule étiquette, deux variantes. Docker choisit la bonne
+          # selon la machine qui télécharge. La construction ARM passe par
+          # l'émulation, donc cet étage dure une quinzaine de minutes — il
+          # ne se déclenche que sur les poussées vers main.
+          platforms: linux/amd64,linux/arm64
           tags: |
             ${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
