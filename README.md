@@ -260,6 +260,24 @@ désengagement progressif des futurs résiliants.
 
 ---
 
+## Image publiée
+
+L'image est publiée sur Docker Hub à chaque poussée sur `main`. Pour lancer
+l'application sans cloner ce dépôt :
+
+```bash
+docker run --rm -p 8501:8501 luciendescaz/churn-app:latest
+```
+
+Deux étiquettes sont publiées. `latest` suit la dernière version de `main`.
+Une seconde étiquette porte l'identifiant du commit qui a produit l'image, et
+reste immuable — c'est elle qu'il faut utiliser pour reproduire un résultat
+précis.
+
+`https://hub.docker.com/r/luciendescaz/churn-app`
+
+---
+
 ## Licence
 
 MIT.
